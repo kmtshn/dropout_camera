@@ -32,6 +32,13 @@
     h1{font-size:19px;margin:0}
     .sub{font-size:12px;color:var(--muted);margin-top:3px}
     .badge{font-size:12px;padding:7px 10px;border-radius:999px;background:#eef8f1;color:#2d6a3f;border:1px solid #d8ebdd;white-space:nowrap}
+    .appTabs{display:flex;gap:6px;margin:0 0 14px;padding:5px;background:#e9edf2;border:1px solid #dce2e8;border-radius:14px;width:max-content;max-width:100%}
+    .appTab{border:0;background:transparent;color:#586575;border-radius:10px;padding:9px 16px;font-weight:700;font-size:13px}
+    .appTab.active{background:#fff;color:#17202b;box-shadow:0 2px 8px rgba(22,34,48,.10)}
+    .barcode-only{display:none!important}
+    .app[data-app-mode="barcode"] .ocr-only{display:none!important}
+    .app[data-app-mode="barcode"] .barcode-only{display:block!important}
+    .app[data-app-mode="barcode"] .barcode-mode-flex{display:flex!important}
     .grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,.8fr);gap:16px}
     .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
     .viewer{overflow:hidden}
@@ -84,13 +91,17 @@
     .barcodeValue{min-height:42px;padding:10px;border-radius:10px;background:#fff;border:1px solid var(--line);font-size:14px;line-height:1.45;word-break:break-all;display:flex;align-items:center}
     .barcodeValue.empty{color:#9aa2ad}
     .barcodeMeta{font-size:11px;color:var(--muted);margin-top:6px}
-    .barcodeActions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+    .barcodeActions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:9px}
     .barcodeActions button{padding:9px 10px;border:1px solid var(--line);background:#fff;border-radius:10px;font-size:12px}
     .barcodeActions button:disabled{opacity:.45;cursor:not-allowed}
     .historyList{display:grid;gap:6px;margin-top:10px}
-    .historyItem{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 9px;border:1px solid #e8ecf1;border-radius:9px;background:#fff;font-size:11px}
+    .historyList{max-height:320px;overflow:auto}
+    .historyItem{display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:8px;padding:8px 9px;border:1px solid #e8ecf1;border-radius:9px;background:#fff;font-size:11px}
+    .historyNo{color:#9aa2ad;font-variant-numeric:tabular-nums}
     .historyCode{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-    .historyFormat{color:var(--muted);white-space:nowrap}
+    .historyFormat{color:var(--muted);white-space:nowrap;text-align:right}
+    .scanGuide{position:absolute;left:12%;right:12%;top:50%;height:2px;background:rgba(52,211,153,.95);box-shadow:0 0 12px rgba(52,211,153,.8);pointer-events:none;display:none}
+    .app[data-app-mode="barcode"] .scanGuide{display:block}
     .privacy{margin-top:12px;font-size:11px;color:#7b8490;line-height:1.5}
     .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(12px);background:#17202b;color:white;padding:10px 14px;border-radius:12px;font-size:13px;opacity:0;pointer-events:none;transition:.2s;z-index:20;box-shadow:var(--shadow)}
     .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -116,25 +127,32 @@
     <div class="badge">端末内だけで処理</div>
   </header>
 
+  <div class="appTabs" role="tablist" aria-label="機能切替">
+    <button class="appTab active" type="button" role="tab" aria-selected="true" data-app-mode="ocr">OCRカメラ</button>
+    <button class="appTab" type="button" role="tab" aria-selected="false" data-app-mode="barcode">バーコード</button>
+  </div>
+
   <main class="grid">
     <section class="panel viewer">
       <div class="viewerHead">
-        <div class="modeGroup" id="modeGroup">
+        <div class="modeGroup ocr-only" id="modeGroup">
           <button class="modeBtn" data-mode="original">原本</button>
           <button class="modeBtn active" data-mode="dropout">赤除去</button>
           <button class="modeBtn" data-mode="gray">グレー</button>
           <button class="modeBtn" data-mode="binary">二値化</button>
         </div>
+        <div class="barcode-only barcode-mode-flex" style="align-items:center;gap:8px"><strong style="font-size:13px">連続スキャン</strong><span class="sub">読み取り後も停止しません</span></div>
         <button class="modeBtn" id="flipBtn">カメラ切替</button>
       </div>
       <div class="stage" id="stage">
         <video id="video" autoplay playsinline muted></video>
         <canvas id="canvas"></canvas>
         <div class="guide"></div>
+        <div class="scanGuide"></div>
         <div class="status" id="status">カメラ待機中</div>
       </div>
 
-      <div class="controls">
+      <div class="controls ocr-only">
         <div class="row">
           <label for="dropStrength">赤除去の強さ</label>
           <div class="controlWrap"><input id="dropStrength" type="range" min="10" max="65" value="35"><span class="value" id="dropStrengthVal">35</span></div>
@@ -151,21 +169,18 @@
           <label>白背景補正</label>
           <label class="switch"><input id="whiteBoost" type="checkbox" checked><span class="slider"></span></label>
         </div>
-        <div class="row">
-          <label>バーコード読み取り</label>
-          <label class="switch"><input id="barcodeEnabled" type="checkbox" checked><span class="slider"></span></label>
-        </div>
       </div>
 
       <div class="actions">
         <button class="btn" id="startBtn">カメラ開始</button>
-        <button class="btn primary" id="captureBtn" disabled>撮影</button>
+        <button class="btn primary ocr-only" id="captureBtn" disabled>撮影</button>
+        <div class="barcode-only" id="barcodeRunningHint" style="align-self:center;text-align:center;font-size:12px;color:var(--muted)">カメラ開始後、自動で連続読み取りします</div>
       </div>
     </section>
 
     <aside class="panel side">
-      <h2>OCR向け設定</h2>
-      <div class="selectRow">
+      <h2 class="ocr-only">OCR向け設定</h2>
+      <div class="selectRow ocr-only">
         <label for="saveMode">保存するOCR画像</label>
         <select id="saveMode">
           <option value="dropout">赤除去カラー</option>
@@ -173,27 +188,28 @@
           <option value="binary" selected>白黒二値</option>
         </select>
       </div>
-      <div class="note">
+      <div class="note ocr-only">
         赤系の罫線・枠をHSV判定で除去します。黒文字は残し、必要に応じてグレースケール化・二値化します。照明によって赤が橙や桃色に寄るため、「赤除去の強さ」で調整してください。
       </div>
 
-      <div class="barcodeCard">
-        <div class="barcodeHead"><strong>バーコード読み取り</strong><span class="barcodeState" id="barcodeSupport">確認中...</span></div>
+      <div class="barcodeCard barcode-only">
+        <div class="barcodeHead"><strong>連続バーコード読み取り</strong><span class="barcodeState" id="barcodeSupport">確認中...</span></div>
         <div class="barcodeValue empty" id="barcodeValue">カメラをバーコードに向けてください</div>
-        <div class="barcodeMeta" id="barcodeMeta">検出結果は端末内だけで処理します</div>
+        <div class="barcodeMeta"><span id="barcodeMeta">検出結果は端末内だけで処理します</span>・<span id="barcodeCount">0件</span></div>
         <div class="barcodeActions">
-          <button id="copyBarcode" disabled>値をコピー</button>
+          <button id="copyBarcode" disabled>最新をコピー</button>
+          <button id="copyAllBarcodes" disabled>全件コピー</button>
           <button id="clearBarcode">履歴をクリア</button>
         </div>
         <div class="historyList" id="barcodeHistory"></div>
       </div>
 
-      <div class="previewTitle"><strong>直近の撮影</strong><span id="captureTime" class="sub">未撮影</span></div>
-      <div class="thumbs">
+      <div class="previewTitle ocr-only"><strong>直近の撮影</strong><span id="captureTime" class="sub">未撮影</span></div>
+      <div class="thumbs ocr-only">
         <div class="thumb"><img id="originalPreview" alt="原本プレビュー"><span>原本</span></div>
         <div class="thumb"><img id="processedPreview" alt="OCR画像プレビュー"><span>OCR</span></div>
       </div>
-      <div class="miniActions">
+      <div class="miniActions ocr-only">
         <button id="downloadOriginal" disabled>原本を保存</button>
         <button id="downloadProcessed" disabled>OCR画像を保存</button>
       </div>
