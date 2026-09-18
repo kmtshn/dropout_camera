@@ -77,6 +77,20 @@
     .thumb span{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.62);color:#fff;font-size:10px;padding:4px 6px;border-radius:7px}
     .miniActions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
     .miniActions button{padding:9px 10px;border:1px solid var(--line);background:#fff;border-radius:10px;font-size:12px}
+    .barcodeCard{margin-top:8px;border:1px solid var(--line);border-radius:14px;padding:12px;background:#fbfcfd}
+    .barcodeHead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+    .barcodeHead strong{font-size:13px}
+    .barcodeState{font-size:11px;color:var(--muted)}
+    .barcodeValue{min-height:42px;padding:10px;border-radius:10px;background:#fff;border:1px solid var(--line);font-size:14px;line-height:1.45;word-break:break-all;display:flex;align-items:center}
+    .barcodeValue.empty{color:#9aa2ad}
+    .barcodeMeta{font-size:11px;color:var(--muted);margin-top:6px}
+    .barcodeActions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+    .barcodeActions button{padding:9px 10px;border:1px solid var(--line);background:#fff;border-radius:10px;font-size:12px}
+    .barcodeActions button:disabled{opacity:.45;cursor:not-allowed}
+    .historyList{display:grid;gap:6px;margin-top:10px}
+    .historyItem{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 9px;border:1px solid #e8ecf1;border-radius:9px;background:#fff;font-size:11px}
+    .historyCode{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+    .historyFormat{color:var(--muted);white-space:nowrap}
     .privacy{margin-top:12px;font-size:11px;color:#7b8490;line-height:1.5}
     .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(12px);background:#17202b;color:white;padding:10px 14px;border-radius:12px;font-size:13px;opacity:0;pointer-events:none;transition:.2s;z-index:20;box-shadow:var(--shadow)}
     .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -97,7 +111,7 @@
       <div class="logo" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="6" width="16" height="12" rx="2.5" stroke="#c83b41" stroke-width="1.8"/><circle cx="12" cy="12" r="3.2" stroke="#c83b41" stroke-width="1.8"/><path d="M8 6l1.4-2h5.2L16 6" stroke="#c83b41" stroke-width="1.8" stroke-linecap="round"/></svg>
       </div>
-      <div><h1>Red Dropout Camera</h1><div class="sub">帳票OCR向け・赤罫線除去カメラ</div></div>
+      <div><h1>Red Dropout Camera</h1><div class="sub">帳票OCR・バーコード読み取りカメラ</div></div>
     </div>
     <div class="badge">端末内だけで処理</div>
   </header>
@@ -137,6 +151,10 @@
           <label>白背景補正</label>
           <label class="switch"><input id="whiteBoost" type="checkbox" checked><span class="slider"></span></label>
         </div>
+        <div class="row">
+          <label>バーコード読み取り</label>
+          <label class="switch"><input id="barcodeEnabled" type="checkbox" checked><span class="slider"></span></label>
+        </div>
       </div>
 
       <div class="actions">
@@ -159,6 +177,17 @@
         赤系の罫線・枠をHSV判定で除去します。黒文字は残し、必要に応じてグレースケール化・二値化します。照明によって赤が橙や桃色に寄るため、「赤除去の強さ」で調整してください。
       </div>
 
+      <div class="barcodeCard">
+        <div class="barcodeHead"><strong>バーコード読み取り</strong><span class="barcodeState" id="barcodeSupport">確認中...</span></div>
+        <div class="barcodeValue empty" id="barcodeValue">カメラをバーコードに向けてください</div>
+        <div class="barcodeMeta" id="barcodeMeta">検出結果は端末内だけで処理します</div>
+        <div class="barcodeActions">
+          <button id="copyBarcode" disabled>値をコピー</button>
+          <button id="clearBarcode">履歴をクリア</button>
+        </div>
+        <div class="historyList" id="barcodeHistory"></div>
+      </div>
+
       <div class="previewTitle"><strong>直近の撮影</strong><span id="captureTime" class="sub">未撮影</span></div>
       <div class="thumbs">
         <div class="thumb"><img id="originalPreview" alt="原本プレビュー"><span>原本</span></div>
@@ -168,7 +197,7 @@
         <button id="downloadOriginal" disabled>原本を保存</button>
         <button id="downloadProcessed" disabled>OCR画像を保存</button>
       </div>
-      <div class="privacy">画像処理はブラウザ内で実行します。このアプリ自体は画像をサーバーへ送信しません。</div>
+      <div class="privacy">画像処理とバーコード解析はブラウザ内で実行します。このアプリ自体は撮影画像や読み取り値をサーバーへ送信しません。</div>
     </aside>
   </main>
 </div>
