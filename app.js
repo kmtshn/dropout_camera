@@ -17,17 +17,21 @@ const downloadOriginal = document.getElementById('downloadOriginal');
 const downloadProcessed = document.getElementById('downloadProcessed');
 const captureTime = document.getElementById('captureTime');
 const toast = document.getElementById('toast');
-const barcodeEnabled = document.getElementById('barcodeEnabled');
+const appRoot = document.querySelector('.app');
+const appTabs = [...document.querySelectorAll('.appTab')];
 const barcodeSupport = document.getElementById('barcodeSupport');
 const barcodeValue = document.getElementById('barcodeValue');
 const barcodeMeta = document.getElementById('barcodeMeta');
 const copyBarcode = document.getElementById('copyBarcode');
+const copyAllBarcodes = document.getElementById('copyAllBarcodes');
 const clearBarcode = document.getElementById('clearBarcode');
 const barcodeHistory = document.getElementById('barcodeHistory');
+const barcodeCount = document.getElementById('barcodeCount');
 
 let stream = null;
 let facingMode = 'environment';
 let running = false;
+let appMode = 'ocr';
 let displayMode = 'dropout';
 let raf = 0;
 let lastRender = 0;
@@ -44,7 +48,10 @@ let lastBarcodeScan = 0;
 let lastBarcodeValue = '';
 let barcodeBoxes = [];
 let barcodeHistoryItems = [];
-const BARCODE_SCAN_INTERVAL = 280;
+let barcodeEmptySince = 0;
+const BARCODE_SCAN_INTERVAL = 220;
+const BARCODE_REARM_MS = 650;
+const MAX_BARCODE_HISTORY = 100;
 
 function showToast(msg){
   toast.textContent = msg;
@@ -64,6 +71,33 @@ function updateLabels(){
   binaryThreshold.addEventListener(ev, updateLabels);
 });
 updateLabels();
+
+function setAppMode(mode){
+  appMode = mode === 'barcode' ? 'barcode' : 'ocr';
+  appRoot.dataset.appMode = appMode;
+
+  for(const tab of appTabs){
+    const active = tab.dataset.appMode === appMode;
+    tab.classList.toggle('active', active);
+    tab.setAttribute('aria-selected', active ? 'true' : 'false');
+  }
+
+  barcodeBoxes = [];
+  barcodeEmptySince = 0;
+
+  if(appMode === 'barcode'){
+    captureBtn.disabled = true;
+    statusEl.textContent = running ? 'バーコード連続スキャン中' : 'カメラ待機中';
+  }else{
+    captureBtn.disabled = !running;
+    statusEl.textContent = running ? 'リアルタイム処理中' : 'カメラ待機中';
+  }
+}
+
+appTabs.forEach(tab=>{
+  tab.addEventListener('click',()=>setAppMode(tab.dataset.appMode));
+});
+setAppMode('ocr');
 
 function setMode(mode){
   displayMode = mode;
@@ -95,8 +129,8 @@ async function startCamera(){
     await video.play();
     running=true;
     startBtn.textContent='カメラ停止';
-    captureBtn.disabled=false;
-    statusEl.textContent='リアルタイム処理中';
+    captureBtn.disabled = appMode !== 'ocr';
+    statusEl.textContent = appMode === 'barcode' ? 'バーコード連続スキャン中' : 'リアルタイム処理中';
     renderLoop();
   }catch(err){
     console.error(err);
@@ -189,18 +223,20 @@ function renderLoop(ts=0){
   lastRender=ts;
   ensureCanvasSize();
   ctx.drawImage(video,0,0,canvas.width,canvas.height);
-  if(displayMode!=='original'){
-    const frame=ctx.getImageData(0,0,canvas.width,canvas.height);
-    ctx.putImageData(processPixels(frame,displayMode),0,0);
+
+  if(appMode === 'ocr'){
+    if(displayMode!=='original'){
+      const frame=ctx.getImageData(0,0,canvas.width,canvas.height);
+      ctx.putImageData(processPixels(frame,displayMode),0,0);
+    }
+  }else{
+    drawBarcodeBoxes();
+    scanBarcodes(ts);
   }
-  drawBarcodeBoxes();
-  scanBarcodes(ts);
 }
 
 async function initBarcodeScanner(){
   if(!('BarcodeDetector' in window)){
-    barcodeEnabled.checked=false;
-    barcodeEnabled.disabled=true;
     barcodeSupport.textContent='このブラウザは非対応';
     barcodeMeta.textContent='Android版Chromeなど、BarcodeDetector対応ブラウザで利用できます';
     return;
@@ -221,15 +257,13 @@ async function initBarcodeScanner(){
     barcodeSupport.title='対応形式: ' + (formats.length ? formats.join(', ') : supported.join(', '));
   }catch(err){
     console.error(err);
-    barcodeEnabled.checked=false;
-    barcodeEnabled.disabled=true;
     barcodeSupport.textContent='初期化できません';
     barcodeMeta.textContent='この端末ではバーコード検出を開始できませんでした';
   }
 }
 
 async function scanBarcodes(ts){
-  if(!running || !barcodeDetector || !barcodeEnabled.checked || barcodeScanning || video.readyState < 2) return;
+  if(appMode!=='barcode' || !running || !barcodeDetector || barcodeScanning || video.readyState < 2) return;
   if(ts-lastBarcodeScan < BARCODE_SCAN_INTERVAL) return;
 
   lastBarcodeScan=ts;
@@ -237,11 +271,21 @@ async function scanBarcodes(ts){
   try{
     const found=await barcodeDetector.detect(video);
     barcodeBoxes=found || [];
+
     if(found && found.length){
-      acceptBarcode(found[0]);
+      barcodeEmptySince=0;
+      const next = found.find(item=>{
+        const raw=(item.rawValue || '').trim();
+        return raw && raw!==lastBarcodeValue;
+      }) || found[0];
+      acceptBarcode(next);
+    }else{
+      if(!barcodeEmptySince) barcodeEmptySince=ts;
+      if(lastBarcodeValue && ts-barcodeEmptySince>=BARCODE_REARM_MS){
+        lastBarcodeValue='';
+      }
     }
   }catch(err){
-    // A transient frame error can occur while the camera is switching.
     if(running) console.debug('Barcode scan skipped:', err);
   }finally{
     barcodeScanning=false;
@@ -260,40 +304,52 @@ function acceptBarcode(item){
 
   if(raw!==lastBarcodeValue){
     lastBarcodeValue=raw;
-    if(navigator.vibrate) navigator.vibrate(60);
+    if(navigator.vibrate) navigator.vibrate(45);
     addBarcodeHistory(raw,format);
   }
 }
 
 function addBarcodeHistory(raw,format){
-  barcodeHistoryItems = [
-    {raw,format},
-    ...barcodeHistoryItems.filter(item=>item.raw!==raw)
-  ].slice(0,5);
+  barcodeHistoryItems.unshift({
+    raw,
+    format,
+    time:new Date()
+  });
+  barcodeHistoryItems=barcodeHistoryItems.slice(0,MAX_BARCODE_HISTORY);
+  copyAllBarcodes.disabled=barcodeHistoryItems.length===0;
+  barcodeCount.textContent=barcodeHistoryItems.length + '件';
   renderBarcodeHistory();
 }
 
 function renderBarcodeHistory(){
   barcodeHistory.textContent='';
-  for(const item of barcodeHistoryItems){
+  const total=barcodeHistoryItems.length;
+
+  barcodeHistoryItems.forEach((item,index)=>{
     const row=document.createElement('div');
     row.className='historyItem';
+
+    const no=document.createElement('span');
+    no.className='historyNo';
+    no.textContent=String(total-index);
 
     const code=document.createElement('span');
     code.className='historyCode';
     code.textContent=item.raw;
+    code.title=item.raw;
 
     const fmt=document.createElement('span');
     fmt.className='historyFormat';
-    fmt.textContent=item.format;
+    const t=item.time.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    fmt.textContent=item.format + ' ' + t;
 
-    row.append(code,fmt);
+    row.append(no,code,fmt);
     barcodeHistory.appendChild(row);
-  }
+  });
 }
 
 function drawBarcodeBoxes(){
-  if(!barcodeEnabled.checked || !barcodeBoxes.length || !video.videoWidth || !video.videoHeight) return;
+  if(appMode!=='barcode' || !barcodeBoxes.length || !video.videoWidth || !video.videoHeight) return;
   const sx=canvas.width/video.videoWidth;
   const sy=canvas.height/video.videoHeight;
 
@@ -349,24 +405,39 @@ copyBarcode.addEventListener('click',async()=>{
   }
 });
 
+copyAllBarcodes.addEventListener('click',async()=>{
+  if(!barcodeHistoryItems.length) return;
+  const lines=[['No','Time','Format','Value'].join('\t')];
+  const ordered=[...barcodeHistoryItems].reverse();
+  ordered.forEach((item,index)=>{
+    lines.push([
+      String(index+1),
+      item.time.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),
+      item.format,
+      item.raw
+    ].join('\t'));
+  });
+  try{
+    await copyText(lines.join('\n'));
+    showToast('読み取り履歴を全件コピーしました');
+  }catch(err){
+    console.error(err);
+    showToast('コピーできませんでした');
+  }
+});
+
 clearBarcode.addEventListener('click',()=>{
   lastBarcodeValue='';
   barcodeBoxes=[];
   barcodeHistoryItems=[];
+  barcodeEmptySince=0;
   barcodeValue.textContent='カメラをバーコードに向けてください';
   barcodeValue.classList.add('empty');
   barcodeMeta.textContent='検出結果は端末内だけで処理します';
+  barcodeCount.textContent='0件';
   copyBarcode.disabled=true;
+  copyAllBarcodes.disabled=true;
   renderBarcodeHistory();
-});
-
-barcodeEnabled.addEventListener('change',()=>{
-  if(!barcodeEnabled.checked){
-    barcodeBoxes=[];
-    barcodeSupport.textContent=barcodeDetector ? '停止中' : barcodeSupport.textContent;
-  }else if(barcodeDetector){
-    barcodeSupport.textContent='利用可能';
-  }
 });
 
 function canvasToBlob(canvas,type='image/png',quality=.95){
