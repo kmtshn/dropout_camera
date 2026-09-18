@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f8fb" />
+  <meta name="color-scheme" content="light" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <title>Red Dropout Camera</title>
+  <style>
+    :root{
+      --bg:#f3f5f8;
+      --panel:#ffffff;
+      --text:#182230;
+      --muted:#6b7280;
+      --line:#dfe4ea;
+      --accent:#e5484d;
+      --accent-weak:#fff0f0;
+      --shadow:0 10px 30px rgba(22,34,48,.10);
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif}
+    body{min-height:100vh}
+    button,input,select{font:inherit}
+    button{cursor:pointer}
+    .app{max-width:1120px;margin:auto;padding:16px 16px 28px}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+    .brand{display:flex;align-items:center;gap:10px}
+    .logo{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,#fff,#f6d8da);display:grid;place-items:center;box-shadow:var(--shadow);border:1px solid #f0d7d8}
+    .logo svg{width:26px;height:26px}
+    h1{font-size:19px;margin:0}
+    .sub{font-size:12px;color:var(--muted);margin-top:3px}
+    .badge{font-size:12px;padding:7px 10px;border-radius:999px;background:#eef8f1;color:#2d6a3f;border:1px solid #d8ebdd;white-space:nowrap}
+    .grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,.8fr);gap:16px}
+    .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+    .viewer{overflow:hidden}
+    .viewerHead{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line)}
+    .modeGroup{display:flex;gap:6px;flex-wrap:wrap}
+    .modeBtn{border:1px solid var(--line);background:#fff;color:#465364;border-radius:10px;padding:7px 10px;font-size:12px}
+    .modeBtn.active{background:var(--accent-weak);border-color:#f0b8bb;color:#9f2d33}
+    .stage{position:relative;background:#101216;aspect-ratio:4/3;display:grid;place-items:center;overflow:hidden}
+    video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0}
+    canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+    .guide{position:absolute;inset:7%;border:2px solid rgba(255,255,255,.8);border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,.10);pointer-events:none}
+    .guide:before,.guide:after{content:"";position:absolute;width:32px;height:32px;border-color:#fff}
+    .guide:before{left:-3px;top:-3px;border-left:5px solid #fff;border-top:5px solid #fff;border-radius:10px 0 0 0}
+    .guide:after{right:-3px;bottom:-3px;border-right:5px solid #fff;border-bottom:5px solid #fff;border-radius:0 0 10px 0}
+    .status{position:absolute;left:12px;bottom:12px;background:rgba(18,22,28,.72);color:#fff;border-radius:999px;padding:7px 10px;font-size:12px;backdrop-filter:blur(8px)}
+    .controls{padding:14px;display:grid;gap:12px}
+    .row{display:flex;align-items:center;gap:10px;justify-content:space-between}
+    .row label{font-size:13px;color:#465364}
+    .controlWrap{display:flex;align-items:center;gap:10px;min-width:55%}
+    input[type=range]{width:100%}
+    .value{min-width:42px;text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:var(--muted)}
+    .switch{position:relative;width:46px;height:26px;flex:0 0 auto}
+    .switch input{display:none}
+    .slider{position:absolute;inset:0;border-radius:999px;background:#d7dce2;transition:.2s}
+    .slider:before{content:"";position:absolute;width:20px;height:20px;left:3px;top:3px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.2);transition:.2s}
+    .switch input:checked + .slider{background:var(--accent)}
+    .switch input:checked + .slider:before{transform:translateX(20px)}
+    .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 14px 14px}
+    .btn{border:1px solid var(--line);background:#fff;color:var(--text);border-radius:13px;padding:12px 14px;font-weight:700}
+    .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .btn:disabled{opacity:.45;cursor:not-allowed}
+    .side{padding:16px}
+    .side h2{font-size:15px;margin:0 0 12px}
+    .selectRow{display:grid;gap:7px;margin-bottom:14px}
+    .selectRow label{font-size:12px;color:var(--muted)}
+    select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--text)}
+    .note{font-size:12px;line-height:1.65;color:var(--muted);background:#f7f9fb;border:1px solid #e8ecf1;border-radius:12px;padding:11px 12px}
+    .previewTitle{display:flex;justify-content:space-between;align-items:center;margin-top:16px;margin-bottom:8px}
+    .previewTitle strong{font-size:13px}
+    .thumbs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .thumb{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#f4f5f7;aspect-ratio:4/3;display:grid;place-items:center;position:relative}
+    .thumb img{width:100%;height:100%;object-fit:cover}
+    .thumb span{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.62);color:#fff;font-size:10px;padding:4px 6px;border-radius:7px}
+    .miniActions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+    .miniActions button{padding:9px 10px;border:1px solid var(--line);background:#fff;border-radius:10px;font-size:12px}
+    .privacy{margin-top:12px;font-size:11px;color:#7b8490;line-height:1.5}
+    .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(12px);background:#17202b;color:white;padding:10px 14px;border-radius:12px;font-size:13px;opacity:0;pointer-events:none;transition:.2s;z-index:20;box-shadow:var(--shadow)}
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    @media (max-width:780px){
+      .app{padding:10px 10px 24px}
+      .grid{grid-template-columns:1fr}
+      .topbar{align-items:flex-start}
+      .badge{font-size:11px}
+      .stage{aspect-ratio:3/4}
+      .actions{position:sticky;bottom:0;background:#fff;padding-top:10px;border-radius:0 0 var(--radius) var(--radius)}
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="6" width="16" height="12" rx="2.5" stroke="#c83b41" stroke-width="1.8"/><circle cx="12" cy="12" r="3.2" stroke="#c83b41" stroke-width="1.8"/><path d="M8 6l1.4-2h5.2L16 6" stroke="#c83b41" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </div>
+      <div><h1>Red Dropout Camera</h1><div class="sub">帳票OCR向け・赤罫線除去カメラ</div></div>
+    </div>
+    <div class="badge">端末内だけで処理</div>
+  </header>
+
+  <main class="grid">
+    <section class="panel viewer">
+      <div class="viewerHead">
+        <div class="modeGroup" id="modeGroup">
+          <button class="modeBtn" data-mode="original">原本</button>
+          <button class="modeBtn active" data-mode="dropout">赤除去</button>
+          <button class="modeBtn" data-mode="gray">グレー</button>
+          <button class="modeBtn" data-mode="binary">二値化</button>
+        </div>
+        <button class="modeBtn" id="flipBtn">カメラ切替</button>
+      </div>
+      <div class="stage" id="stage">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="canvas"></canvas>
+        <div class="guide"></div>
+        <div class="status" id="status">カメラ待機中</div>
+      </div>
+
+      <div class="controls">
+        <div class="row">
+          <label for="dropStrength">赤除去の強さ</label>
+          <div class="controlWrap"><input id="dropStrength" type="range" min="10" max="65" value="35"><span class="value" id="dropStrengthVal">35</span></div>
+        </div>
+        <div class="row">
+          <label for="satMin">最低彩度</label>
+          <div class="controlWrap"><input id="satMin" type="range" min="10" max="90" value="38"><span class="value" id="satMinVal">38%</span></div>
+        </div>
+        <div class="row">
+          <label for="binaryThreshold">二値化しきい値</label>
+          <div class="controlWrap"><input id="binaryThreshold" type="range" min="70" max="230" value="165"><span class="value" id="binaryThresholdVal">165</span></div>
+        </div>
+        <div class="row">
+          <label>白背景補正</label>
+          <label class="switch"><input id="whiteBoost" type="checkbox" checked><span class="slider"></span></label>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="startBtn">カメラ開始</button>
+        <button class="btn primary" id="captureBtn" disabled>撮影</button>
+      </div>
+    </section>
+
+    <aside class="panel side">
+      <h2>OCR向け設定</h2>
+      <div class="selectRow">
+        <label for="saveMode">保存するOCR画像</label>
+        <select id="saveMode">
+          <option value="dropout">赤除去カラー</option>
+          <option value="gray">グレースケール</option>
+          <option value="binary" selected>白黒二値</option>
+        </select>
+      </div>
+      <div class="note">
+        赤系の罫線・枠をHSV判定で除去します。黒文字は残し、必要に応じてグレースケール化・二値化します。照明によって赤が橙や桃色に寄るため、「赤除去の強さ」で調整してください。
+      </div>
+
+      <div class="previewTitle"><strong>直近の撮影</strong><span id="captureTime" class="sub">未撮影</span></div>
+      <div class="thumbs">
+        <div class="thumb"><img id="originalPreview" alt="原本プレビュー"><span>原本</span></div>
+        <div class="thumb"><img id="processedPreview" alt="OCR画像プレビュー"><span>OCR</span></div>
+      </div>
+      <div class="miniActions">
+        <button id="downloadOriginal" disabled>原本を保存</button>
+        <button id="downloadProcessed" disabled>OCR画像を保存</button>
+      </div>
+      <div class="privacy">画像処理はブラウザ内で実行します。このアプリ自体は画像をサーバーへ送信しません。</div>
+    </aside>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
