@@ -48,9 +48,9 @@ let lastBarcodeScan = 0;
 let lastBarcodeValue = '';
 let barcodeBoxes = [];
 let barcodeHistoryItems = [];
-let barcodeEmptySince = 0;
+let barcodeLastSeen = new Map();
 const BARCODE_SCAN_INTERVAL = 220;
-const BARCODE_REARM_MS = 650;
+const BARCODE_REARM_MS = 700;
 const MAX_BARCODE_HISTORY = 100;
 
 function showToast(msg){
@@ -83,7 +83,6 @@ function setAppMode(mode){
   }
 
   barcodeBoxes = [];
-  barcodeEmptySince = 0;
 
   if(appMode === 'barcode'){
     captureBtn.disabled = true;
@@ -272,18 +271,19 @@ async function scanBarcodes(ts){
     const found=await barcodeDetector.detect(video);
     barcodeBoxes=found || [];
 
-    if(found && found.length){
-      barcodeEmptySince=0;
-      const next = found.find(item=>{
-        const raw=(item.rawValue || '').trim();
-        return raw && raw!==lastBarcodeValue;
-      }) || found[0];
-      acceptBarcode(next);
-    }else{
-      if(!barcodeEmptySince) barcodeEmptySince=ts;
-      if(lastBarcodeValue && ts-barcodeEmptySince>=BARCODE_REARM_MS){
-        lastBarcodeValue='';
+    for(const item of found || []){
+      const raw=(item.rawValue || '').trim();
+      if(!raw) continue;
+
+      const previous=barcodeLastSeen.get(raw);
+      if(previous===undefined || ts-previous>=BARCODE_REARM_MS){
+        acceptBarcode(item);
       }
+      barcodeLastSeen.set(raw,ts);
+    }
+
+    for(const [raw,lastSeen] of barcodeLastSeen){
+      if(ts-lastSeen > 5000) barcodeLastSeen.delete(raw);
     }
   }catch(err){
     if(running) console.debug('Barcode scan skipped:', err);
@@ -302,11 +302,9 @@ function acceptBarcode(item){
   barcodeMeta.textContent='形式: ' + format;
   copyBarcode.disabled=false;
 
-  if(raw!==lastBarcodeValue){
-    lastBarcodeValue=raw;
-    if(navigator.vibrate) navigator.vibrate(45);
-    addBarcodeHistory(raw,format);
-  }
+  lastBarcodeValue=raw;
+  if(navigator.vibrate) navigator.vibrate(45);
+  addBarcodeHistory(raw,format);
 }
 
 function addBarcodeHistory(raw,format){
@@ -430,7 +428,7 @@ clearBarcode.addEventListener('click',()=>{
   lastBarcodeValue='';
   barcodeBoxes=[];
   barcodeHistoryItems=[];
-  barcodeEmptySince=0;
+  barcodeLastSeen.clear();
   barcodeValue.textContent='カメラをバーコードに向けてください';
   barcodeValue.classList.add('empty');
   barcodeMeta.textContent='検出結果は端末内だけで処理します';
