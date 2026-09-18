@@ -135,7 +135,6 @@ function processPixels(imageData, mode){
     }
 
     if(boost && mode!=='original'){
-      // Lift near-white paper/background while preserving dark text.
       const lum=0.2126*r+0.7152*g+0.0722*b;
       if(lum>180){
         const k=Math.min(1,(lum-180)/75);
@@ -216,10 +215,10 @@ function downloadBlob(blob,filename){
 function stamp(){
   const d=new Date();
   const p=n=>String(n).padStart(2,'0');
-  return \`\${d.getFullYear()}\${p(d.getMonth()+1)}\${p(d.getDate())}_\${p(d.getHours())}\${p(d.getMinutes())}\${p(d.getSeconds())}\`;
+  return String(d.getFullYear()) + p(d.getMonth()+1) + p(d.getDate()) + '_' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
 }
-downloadOriginal.addEventListener('click',()=>originalBlob&&downloadBlob(originalBlob,\`original_\${stamp()}.jpg\`));
-downloadProcessed.addEventListener('click',()=>processedBlob&&downloadBlob(processedBlob,\`ocr_\${saveMode.value}_\${stamp()}.png\`));
+downloadOriginal.addEventListener('click',()=>originalBlob&&downloadBlob(originalBlob,'original_' + stamp() + '.jpg'));
+downloadProcessed.addEventListener('click',()=>processedBlob&&downloadBlob(processedBlob,'ocr_' + saveMode.value + '_' + stamp() + '.png'));
 
 saveMode.addEventListener('change',()=>{
   if(originalBlob) showToast('次回撮影から保存形式に反映');
